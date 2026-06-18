@@ -5,14 +5,13 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o wgmp .
 
-FROM debian:trixie-slim
+FROM scratch
 WORKDIR /app
-# ENV DEBIAN_FRONTEND=noninteractive
-# RUN apt update && \
-#     apt install -y \
-#     ca-certificates
-# RUN rm -rf /var/lib/apt/lists/*
 
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /app/wgmp /app/wgmp
+
+USER 65532
+
 ENTRYPOINT ["./wgmp"]
 CMD ["list-interfaces"]
