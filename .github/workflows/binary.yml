@@ -37,6 +37,24 @@ jobs:
           name: build_linux_amd64
           path: dist/*linux*
 
+      - name: Artifact FreeBSD
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_freebsd_amd64
+          path: dist/*freebsd*
+
+      - name: Artifact Darwin
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_darwin_amd64
+          path: dist/*darwin*
+
+      - name: Artifact Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_windows_amd64
+          path: dist/*windows*
+
   build-arm64:
     runs-on: ubuntu-22.04-arm
     permissions:
@@ -68,3 +86,9 @@ jobs:
         with:
           name: build_linux_arm64
           path: dist/*linux*
+
+      - name: Artifact Darwin
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_darwin_amd64
+          path: dist/*darwin*
