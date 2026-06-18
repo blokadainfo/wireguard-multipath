@@ -1,0 +1,27 @@
+version: 2
+
+# .goreleaser.yml
+project_name: wireguard-multipath
+
+# Build
+builds:
+  - env: [CGO_ENABLED=0]
+    goos:
+      - linux
+    goarch:
+      - arm64
+    ldflags:
+      - -s -w
+    flags:
+      - -trimpath
+    binary: wgmp
+    main: .
+
+# Archive
+archives:
+  - name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format: "binary"
+
+# Checksums
+checksum:
+  disable: true

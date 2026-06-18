@@ -1,0 +1,70 @@
+name: Binary CI/CD
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean --config goreleaser/amd64.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Artifact Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_linux_amd64
+          path: dist/*linux*
+
+  build-arm64:
+    runs-on: ubuntu-22.04-arm
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean --config goreleaser/arm64.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Artifact Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: build_linux_arm64
+          path: dist/*linux*
