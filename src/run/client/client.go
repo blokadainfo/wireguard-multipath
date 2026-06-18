@@ -214,10 +214,16 @@ func readFromInterface(ctx context.Context, rm *routine.RoutineMap, ifname strin
 
 		pkt, err := rtn.Read()
 		if err != nil {
-			slog.Warn("Failed to read, removing routine", "interface", ifname, "error", err)
+			if errors.Is(err, routine.ErrRoutineClosed) {
+				slog.Debug("Failed to read, removing routine", "interface", ifname, "error", err)
+			} else {
+				slog.Error("Failed to read, removing routine", "interface", ifname, "error", err)
+			}
+
 			if _, err := rm.DelRoutine(ifname); err != nil {
 				slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 			}
+
 			return
 		}
 
@@ -243,7 +249,12 @@ func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			for ifname, rtn := range rm.GetRoutines() {
 				wg.Go(func() {
 					if err := rtn.Write(pkt, cfg.SocketWriteTimeout); err != nil {
-						slog.Warn("Failed to write, removing routine", "interface", ifname, "error", err)
+						if errors.Is(err, routine.ErrRoutineClosed) {
+							slog.Debug("Failed to write, removing routine", "interface", ifname, "error", err)
+						} else {
+							slog.Error("Failed to write, removing routine", "interface", ifname, "error", err)
+						}
+
 						if _, err := rm.DelRoutine(ifname); err != nil {
 							slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 						}

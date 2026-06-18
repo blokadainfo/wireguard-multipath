@@ -1,6 +1,7 @@
 package routine
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -10,11 +11,14 @@ import (
 	"github.com/blokadainfo/wireguard-multipath/src/packet"
 )
 
+var ErrRoutineClosed = errors.New("routine is closed")
+
 type Routine struct {
-	ifname   string       // Name of the interface
-	sock     *net.UDPConn // Socket bound to the interface
-	srcAddr  *net.UDPAddr // Address of the interface (ip+port)
-	dstAddr  *net.UDPAddr // Server destination address
+	ifname   string
+	sock     *net.UDPConn
+	srcAddr  *net.UDPAddr
+	dstAddr  *net.UDPAddr
+	closed   bool
 	lastSeen time.Time
 	l        sync.RWMutex
 }
@@ -40,6 +44,7 @@ func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, erro
 		sock:     sock,
 		srcAddr:  srcAddr,
 		dstAddr:  dstAddr,
+		closed:   false,
 		lastSeen: time.Time{},
 		l:        sync.RWMutex{},
 	}, nil
@@ -49,6 +54,12 @@ func (r *Routine) Close() error {
 	r.l.Lock()
 	defer r.l.Unlock()
 
+	if r.closed {
+		return nil
+	}
+
+	r.closed = true
+
 	return r.sock.Close()
 }
 
@@ -56,7 +67,15 @@ func (r *Routine) Read() (packet.Packet, error) {
 	buffer := make([]byte, packet.RawDataBufferSize)
 	n, _, err := r.sock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
-		return packet.Packet{}, fmt.Errorf("failed to read from socket on interface %v: %v", r.ifname, err)
+		// WARN: Has to be after the blocking action
+		r.l.RLock()
+		defer r.l.RUnlock()
+
+		if r.closed {
+			return packet.Packet{}, ErrRoutineClosed
+		}
+
+		return packet.Packet{}, fmt.Errorf("failed to read from socket: %v", err)
 	}
 
 	// WARN: Has to be after the blocking action
@@ -74,12 +93,16 @@ func (r *Routine) Write(pkt packet.PacketWithClientID, deadline time.Duration) e
 	r.l.Lock()
 	defer r.l.Unlock()
 
+	if r.closed {
+		return ErrRoutineClosed
+	}
+
 	if err := r.sock.SetWriteDeadline(time.Now().Add(deadline)); err != nil {
-		return fmt.Errorf("failed to set write deadline for socket on interface %v: %v", r.ifname, err)
+		return fmt.Errorf("failed to set write deadline for socket: %v", err)
 	}
 
 	if _, err := r.sock.WriteToUDP(pkt.Bytes(), r.dstAddr); err != nil {
-		return fmt.Errorf("failed to write to socket on interface %v: %v", r.ifname, err)
+		return fmt.Errorf("failed to write to socket: %v", err)
 	}
 
 	return nil

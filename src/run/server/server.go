@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"time"
@@ -131,7 +132,11 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 			if c, ok := cm.GetClient(pkt.ClientID()); ok {
 				go func() {
 					if err := c.WriteToWgRoutine(pkt.SrcAddr(), pkt.StripClientID(), cfg.SocketWriteTimeout); err != nil {
-						slog.Warn("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
+						if errors.Is(err, client.ErrWgRoutineClosed) {
+							slog.Debug("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+						} else {
+							slog.Error("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+						}
 					} else {
 						slog.Debug("Written to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 					}
@@ -152,7 +157,11 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 
 				go func() {
 					if err := c.WriteToWgRoutine(pkt.SrcAddr(), pkt.StripClientID(), cfg.SocketWriteTimeout); err != nil {
-						slog.Warn("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
+						if errors.Is(err, client.ErrWgRoutineClosed) {
+							slog.Debug("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+						} else {
+							slog.Error("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+						}
 					} else {
 						slog.Debug("Written to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 					}
@@ -175,10 +184,17 @@ func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, clientId
 
 		pkt, err := c.ReadFromWgRoutine()
 		if err != nil {
-			slog.Error("Failed to read, removing client", "client_id", clientId.String(), "error", err)
+			if errors.Is(err, client.ErrWgRoutineClosed) {
+				slog.Debug("Failed to read, removing client", "client_id", clientId.String(), "error", err)
+			} else {
+				slog.Error("Failed to read, removing client", "client_id", clientId.String(), "error", err)
+			}
+
 			if _, err := cm.DelClient(clientId); err != nil {
 				slog.Error("Failed to delete client from the client map", "client_id", clientId.String(), "error", err)
 			}
+
+			// Closes the goroutine for reading from the wg routine
 			return
 		}
 		slog.Debug("Read data from the client wg routine", "client_id", clientId.String(), "packet", pkt.String())
