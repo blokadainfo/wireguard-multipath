@@ -11,27 +11,27 @@ type Glob struct {
 }
 
 func Compile(expr string) (Glob, error) {
-	var re strings.Builder
-	re.WriteString("^")
+	var e strings.Builder
+	e.WriteString("^")
 
 	for i := 0; i < len(expr); i++ {
 		switch expr[i] {
 		case '*':
-			re.WriteString(".*")
+			e.WriteString(".*")
 		case '?':
-			re.WriteString(".")
+			e.WriteString(".")
 		case '.', '+', '(', ')', '|', '^', '$', '{', '}', '\\':
-			re.WriteByte('\\')
-			re.WriteByte(expr[i])
+			e.WriteByte('\\')
+			e.WriteByte(expr[i])
 		default:
-			re.WriteByte(expr[i])
+			e.WriteByte(expr[i])
 		}
 	}
 
-	re.WriteString("$")
-	regexp, err := regexp.Compile(re.String())
+	e.WriteString("$")
+	re, err := regexp.Compile(e.String())
 
-	return Glob{regexp: regexp}, err
+	return Glob{regexp: re}, err
 }
 
 func MustCompile(str string) Glob {
