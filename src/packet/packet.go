@@ -23,8 +23,7 @@ type Packet struct {
 }
 
 func NewPacket(buffer []byte, n int) Packet {
-	b := make([]byte, n)
-	copy(b, buffer[:n])
+	b := buffer[:n]
 
 	return Packet{b: b}
 }
@@ -39,10 +38,7 @@ func (p Packet) String() string {
 }
 
 func (p Packet) Bytes() []byte {
-	b := make([]byte, len(p.b))
-	copy(b, p.b)
-
-	return b
+	return p.b
 }
 
 type PacketWithSrcAddrs struct {
@@ -66,8 +62,7 @@ type PacketWithClientID struct {
 }
 
 func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWithClientID {
-	b := make([]byte, n)
-	copy(b, buffer[:n])
+	b := buffer[:n]
 
 	switch len(clientId) {
 	case 0:
@@ -109,8 +104,7 @@ func (p PacketWithClientID) StripClientID() Packet {
 		panic(fmt.Errorf("packet contains only the UUIDv4 in bytes: %v", p.String()))
 	}
 
-	b := make([]byte, len(p.b)-uuidv4Size)
-	copy(b, p.b[uuidv4Size:])
+	b := p.b[uuidv4Size:]
 
 	return Packet{b: b}
 }
