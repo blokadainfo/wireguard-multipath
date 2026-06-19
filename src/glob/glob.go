@@ -51,6 +51,10 @@ func (g Glob) Match(b []byte) bool {
 	return g.regexp.Match(b)
 }
 
+func (g Glob) String() string {
+	return g.regexp.String()
+}
+
 func quote(s string) string {
 	if strconv.CanBackquote(s) {
 		return "`" + s + "`"
