@@ -43,12 +43,12 @@ func MustCompile(str string) Glob {
 	return glob
 }
 
-func (g Glob) MatchString(s string) bool {
-	return g.regexp.MatchString(s)
-}
-
 func (g Glob) Match(b []byte) bool {
 	return g.regexp.Match(b)
+}
+
+func (g Glob) MatchString(s string) bool {
+	return g.regexp.MatchString(s)
 }
 
 func (g Glob) String() string {
