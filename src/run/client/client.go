@@ -164,7 +164,7 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			ifname := iface.Name
 
 			if ifaceutils.IsInterfaceExcluded(cfg.ExcludedInterfaces, ifname) {
-				slog.Warn("Skipping excluded", "interface", ifname)
+				slog.Debug("Skipping excluded", "interface", ifname)
 				continue
 			}
 
