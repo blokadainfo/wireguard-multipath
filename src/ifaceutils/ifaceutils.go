@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"slices"
 	"strings"
+
+	"github.com/blokadainfo/wireguard-multipath/src/glob"
 )
 
 var ErrAddressNotAllowed = errors.New("address is not allowed")
@@ -64,4 +67,10 @@ func isAddressAllowed(addr string) bool {
 	}
 
 	return true
+}
+
+func IsInterfaceExcluded(excludedInterfaces []glob.Glob, ifname string) bool {
+	return slices.ContainsFunc(excludedInterfaces, func(e glob.Glob) bool {
+		return e.MatchString(ifname)
+	})
 }

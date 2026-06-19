@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -164,8 +163,8 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 		for _, iface := range interfaces {
 			ifname := iface.Name
 
-			if slices.Contains(cfg.ExcludedInterfaces, ifname) {
-				slog.Debug("Skipping excluded", "interface", ifname)
+			if ifaceutils.IsInterfaceExcluded(cfg.ExcludedInterfaces, ifname) {
+				slog.Warn("Skipping excluded", "interface", ifname)
 				continue
 			}
 
