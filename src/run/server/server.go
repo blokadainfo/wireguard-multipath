@@ -59,7 +59,7 @@ func Run(cfg config.ServerConfig) {
 }
 
 func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientIDAndSrcAddr) {
-	buffer := make([]byte, packet.RawDataWithClientIdHeaderBufferSize)
+	buffer := make([]byte, packet.BufferSize)
 	for {
 		select {
 		case <-ctx.Done():

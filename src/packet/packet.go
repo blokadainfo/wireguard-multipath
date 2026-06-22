@@ -10,12 +10,9 @@ import (
 )
 
 const (
-	wireguardMTU      = 1340 // TODO: Make this configurable
-	wireguardOverhead = 80
-	uuidv4Size        = 16
+	uuidv4Size = 16
 
-	RawDataBufferSize                   = wireguardMTU + wireguardOverhead // Buffer size for the packet with raw data (without client id header)
-	RawDataWithClientIdHeaderBufferSize = RawDataBufferSize + uuidv4Size   // Buffer size for the packet with both the client id header and raw data
+	BufferSize = 1500
 )
 
 type Packet struct {

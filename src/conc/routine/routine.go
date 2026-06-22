@@ -64,7 +64,7 @@ func (r *Routine) Close() error {
 }
 
 func (r *Routine) Read() (packet.Packet, error) {
-	buffer := make([]byte, packet.RawDataBufferSize)
+	buffer := make([]byte, packet.BufferSize)
 	n, _, err := r.sock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
 		// WARN: Has to be after the blocking action
