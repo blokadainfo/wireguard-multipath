@@ -17,21 +17,21 @@ const (
 
 type Packet struct {
 	b []byte
+	h string
 }
 
 func NewPacket(buffer []byte, n int) Packet {
 	b := buffer[:n]
-
-	return Packet{b: b}
-}
-
-func (p Packet) String() string {
 	h := crc32.NewIEEE()
-	if _, err := h.Write(p.b); err != nil {
+	if _, err := h.Write(b); err != nil {
 		panic("failed to write packet bytes to hash")
 	}
 
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return Packet{b: b, h: fmt.Sprintf("%x", h.Sum(nil))}
+}
+
+func (p Packet) String() string {
+	return p.h
 }
 
 func (p Packet) Bytes() []byte {
@@ -93,17 +93,11 @@ func (p PacketWithClientID) ClientID() uuid.UUID {
 }
 
 func (p PacketWithClientID) StripClientID() Packet {
-	if len(p.b) < uuidv4Size {
-		panic(fmt.Errorf("packet has less than the size of UUIDv4 in bytes: %v", p.String()))
-	}
+	buffer := p.b[uuidv4Size:]
+	n := len(buffer)
+	pkt := NewPacket(buffer, n)
 
-	if len(p.b) == uuidv4Size {
-		panic(fmt.Errorf("packet contains only the UUIDv4 in bytes: %v", p.String()))
-	}
-
-	b := p.b[uuidv4Size:]
-
-	return Packet{b: b}
+	return pkt
 }
 
 type PacketWithClientIDAndSrcAddr struct {
