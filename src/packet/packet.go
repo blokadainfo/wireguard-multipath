@@ -26,8 +26,9 @@ func NewPacket(buffer []byte, n int) Packet {
 	if _, err := h.Write(b); err != nil {
 		panic("failed to write packet bytes to hash")
 	}
+	hS := fmt.Sprintf("%x", h.Sum(nil))
 
-	return Packet{b: b, h: fmt.Sprintf("%x", h.Sum(nil))}
+	return Packet{b: b, h: hS}
 }
 
 func (p Packet) String() string {
@@ -60,6 +61,11 @@ type PacketWithClientID struct {
 
 func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWithClientID {
 	b := buffer[:n]
+	h := crc32.NewIEEE()
+	if _, err := h.Write(b); err != nil {
+		panic("failed to write packet bytes to hash")
+	}
+	hS := fmt.Sprintf("%x", h.Sum(nil))
 
 	switch len(clientId) {
 	case 0:
@@ -85,7 +91,7 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 		panic(fmt.Errorf("failed to validate client id (%v): %v", cid.String(), err))
 	}
 
-	return PacketWithClientID{Packet: Packet{b: b}, cid: cid}
+	return PacketWithClientID{Packet: Packet{b: b, h: hS}, cid: cid}
 }
 
 func (p PacketWithClientID) ClientID() uuid.UUID {
@@ -94,10 +100,8 @@ func (p PacketWithClientID) ClientID() uuid.UUID {
 
 func (p PacketWithClientID) StripClientID() Packet {
 	buffer := p.b[uuidv4Size:]
-	n := len(buffer)
-	pkt := NewPacket(buffer, n)
 
-	return pkt
+	return Packet{b: buffer, h: p.h}
 }
 
 type PacketWithClientIDAndSrcAddr struct {
