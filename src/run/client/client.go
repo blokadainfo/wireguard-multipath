@@ -179,6 +179,11 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 				continue
 			}
 
+			if ifaceutils.IsCIDRExcluded(cfg.ExcludedCIDRs, ifaddr) {
+				slog.Debug("Skipping excluded CIDR", "interface", ifname, "address", ifaddr)
+				continue
+			}
+
 			slog.Info("Adding new interface", "interface", ifname, "address", ifaddr)
 			go createInterfaceRoutine(ctx, cfg, rm, ifname, ifaddr, lWriteCh)
 		}

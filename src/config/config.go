@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net"
 	"time"
 
 	"github.com/blokadainfo/wireguard-multipath/src/envutils"
@@ -17,6 +18,7 @@ type ClientConfig struct {
 	ServerAddr         string        // WGMP_CLIENT_SERVER_ADDR
 	SocketWriteTimeout time.Duration // WGMP_CLIENT_SOCKET_WRITE_TIMEOUT_MS
 	ExcludedInterfaces []glob.Glob   // WGMP_CLIENT_EXCLUDED_INTERFACES
+	ExcludedCIDRs      []net.IPNet   // WGMP_CLIENT_EXCLUDED_CIDRS
 }
 
 type ServerConfig struct {
@@ -38,6 +40,7 @@ func LoadClient() ClientConfig {
 		ServerAddr:         envutils.GetString("WGMP_CLIENT_SERVER_ADDR"), // REQUIRED
 		SocketWriteTimeout: envutils.GetTimeDuration(time.Millisecond, "WGMP_CLIENT_SOCKET_WRITE_TIMEOUT_MS", 10*time.Millisecond),
 		ExcludedInterfaces: envutils.GetGlobList("WGMP_CLIENT_EXCLUDED_INTERFACES", []glob.Glob{glob.MustCompile("wg*"), glob.MustCompile("vlan*")}),
+		ExcludedCIDRs:      envutils.GetCIDRList("WGMP_CLIENT_EXCLUDED_CIDRS", []net.IPNet{}),
 	}
 }
 

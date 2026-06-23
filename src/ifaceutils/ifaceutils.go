@@ -11,7 +11,14 @@ import (
 	"github.com/blokadainfo/wireguard-multipath/src/glob"
 )
 
-var ErrAddressNotAllowed = errors.New("address is not allowed")
+var (
+	_disallowedCIDRs = [...]net.IPNet{
+		ExtractCIDR(MustParseCIDR("127.0.0.0/8")),
+		ExtractCIDR(MustParseCIDR("169.254.0.0/16")),
+	}
+
+	ErrAddressNotAllowed = errors.New("address is not allowed")
+)
 
 func ListInterfaces() {
 	interfaces, err := net.Interfaces()
@@ -53,15 +60,9 @@ func isAddressAllowed(addr string) bool {
 		return false
 	}
 
-	ip := net.ParseIP(addr)
-	disallowedNetworks := [...]string{
-		"169.254.0.0/16",
-		"127.0.0.0/8",
-	}
-
-	for _, disallowedNetwork := range disallowedNetworks {
-		_, subnet, _ := net.ParseCIDR(disallowedNetwork)
-		if subnet.Contains(ip) {
+	ip := net.ParseIP(addr) // TODO: Handle if ip is nil (failed to parse)?
+	for _, cidr := range _disallowedCIDRs {
+		if cidr.Contains(ip) {
 			return false
 		}
 	}
@@ -72,5 +73,16 @@ func isAddressAllowed(addr string) bool {
 func IsInterfaceExcluded(excludedInterfaces []glob.Glob, ifname string) bool {
 	return slices.ContainsFunc(excludedInterfaces, func(e glob.Glob) bool {
 		return e.MatchString(ifname)
+	})
+}
+
+func IsCIDRExcluded(excludedCIDRs []net.IPNet, ifaddr string) bool {
+	ip := net.ParseIP(ifaddr)
+	if ip == nil {
+		panic(fmt.Sprintf("failed to parse ip '%v'", ifaddr))
+	}
+
+	return slices.ContainsFunc(excludedCIDRs, func(e net.IPNet) bool {
+		return e.Contains(ip)
 	})
 }

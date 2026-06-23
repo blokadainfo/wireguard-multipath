@@ -3,6 +3,7 @@ package envutils
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"regexp"
 	"strconv"
@@ -12,7 +13,7 @@ import (
 	"github.com/blokadainfo/wireguard-multipath/src/glob"
 )
 
-func get[T bool | int64 | time.Duration | float64 | string | []string | *regexp.Regexp | []*regexp.Regexp | glob.Glob | []glob.Glob](conv func(string) (T, error), key string, fallback ...T) T {
+func get[T bool | int64 | time.Duration | float64 | string | []string | net.IPNet | []net.IPNet | *regexp.Regexp | []*regexp.Regexp | glob.Glob | []glob.Glob](conv func(string) (T, error), key string, fallback ...T) T {
 	value, ok := os.LookupEnv(key)
 	if ok {
 		if v, err := conv(value); err != nil {
@@ -74,6 +75,29 @@ func GetRegexpList(key string, fallback ...[]*regexp.Regexp) []*regexp.Regexp {
 func GetRegexp(key string, fallback ...*regexp.Regexp) *regexp.Regexp {
 	return get(func(str string) (*regexp.Regexp, error) {
 		return regexp.Compile(str)
+	}, key, fallback...)
+}
+
+func GetCIDRList(key string, fallback ...[]net.IPNet) []net.IPNet {
+	return get(func(str string) ([]net.IPNet, error) {
+		strs := strings.Split(str, ",")
+		cidrs := make([]net.IPNet, 0, len(strs))
+		for _, s := range strs {
+			_, cidr, err := net.ParseCIDR(s)
+			if err != nil {
+				return cidrs, err
+			}
+
+			cidrs = append(cidrs, *cidr)
+		}
+		return cidrs, nil
+	}, key, fallback...)
+}
+
+func GetCIDR(key string, fallback ...net.IPNet) net.IPNet {
+	return get(func(str string) (net.IPNet, error) {
+		_, cidr, err := net.ParseCIDR(str)
+		return *cidr, err
 	}, key, fallback...)
 }
 
