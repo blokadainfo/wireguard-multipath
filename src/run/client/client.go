@@ -64,7 +64,6 @@ func Run(cfg config.ClientConfig) {
 }
 
 func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
-	buffer := make([]byte, packet.BufferSize)
 	for {
 		select {
 		case <-ctx.Done():
@@ -73,6 +72,7 @@ func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan pack
 		default:
 		}
 
+		buffer := make([]byte, packet.BufferSize)
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
 			slog.Error("Failed to read data from the listener socket", "error", err)
