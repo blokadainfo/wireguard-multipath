@@ -59,20 +59,20 @@ func (c *Client) ReadFromWgRoutine() (packet.PacketWithSrcAddrs, error) {
 	return pktWSA, err
 }
 
-func (c *Client) WriteToWgRoutine(connSrcAddr *net.UDPAddr, pkt packet.Packet, deadline time.Duration) error {
+func (c *Client) WriteToWgRoutine(pkt packet.PacketWithClientIDAndSrcAddr, deadline time.Duration) error {
 	c.l.Lock()
 	defer c.l.Unlock()
 
 	found := false
 	for _, conn := range c.conns {
-		if conn.SameSrcAddr(connSrcAddr) {
+		if conn.SameSrcAddr(pkt.SrcAddr()) {
 			found = true
 			conn.UpdateLastSeen()
 			break
 		}
 	}
 	if !found {
-		conn := NewConnection(connSrcAddr)
+		conn := NewConnection(pkt.SrcAddr())
 		conn.UpdateLastSeen()
 		c.conns = append(c.conns, conn)
 	}

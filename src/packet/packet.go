@@ -4,39 +4,34 @@ import (
 	"fmt"
 	"hash/crc32"
 	"net"
-	"slices"
-
-	"github.com/google/uuid"
-)
-
-const (
-	uuidv4Size = 16
-
-	BufferSize = 1500
 )
 
 type Packet struct {
-	b []byte
-	h string
+	buffer []byte // buffer of original size
+	n      int    // number of bytes that are actually written to the buffer
+	hash   string // hash of the actually written bytes
 }
 
 func NewPacket(buffer []byte, n int) Packet {
-	b := buffer[:n]
+	if n == 0 {
+		panic("packet contains no data")
+	}
+
 	h := crc32.NewIEEE()
-	if _, err := h.Write(b); err != nil {
+	if _, err := h.Write(buffer[:n]); err != nil {
 		panic("failed to write packet bytes to hash")
 	}
 	hS := fmt.Sprintf("%x", h.Sum(nil))
 
-	return Packet{b: b, h: hS}
-}
-
-func (p Packet) String() string {
-	return p.h
+	return Packet{buffer: buffer, n: n, hash: hS}
 }
 
 func (p Packet) Bytes() []byte {
-	return p.b
+	return p.buffer[:p.n]
+}
+
+func (p Packet) String() string {
+	return p.hash
 }
 
 type PacketWithSrcAddrs struct {
@@ -51,75 +46,4 @@ func NewPacketWithSrcAddrs(pkt Packet, srcAddrs []*net.UDPAddr) PacketWithSrcAdd
 
 func (p PacketWithSrcAddrs) GetSourceAddresses() []*net.UDPAddr {
 	return p.srcAddrs
-}
-
-type PacketWithClientID struct {
-	Packet
-
-	cid uuid.UUID
-}
-
-func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWithClientID {
-	b := buffer[:n]
-	h := crc32.NewIEEE()
-	if _, err := h.Write(b); err != nil {
-		panic("failed to write packet bytes to hash")
-	}
-	hS := fmt.Sprintf("%x", h.Sum(nil))
-
-	switch len(clientId) {
-	case 0:
-	case 1:
-		b = slices.Insert(b, 0, clientId[0][:]...)
-	default:
-		panic("only one client id can be passed as parameter")
-	}
-
-	if len(b) < uuidv4Size {
-		panic(fmt.Errorf("packet has less than the size of UUIDv4 in bytes: %v", string(b)))
-	}
-	if len(b) == uuidv4Size {
-		panic(fmt.Errorf("packet contains only the UUIDv4 in bytes: %v", string(b)))
-	}
-
-	cid, err := uuid.FromBytes(b[:uuidv4Size])
-	if err != nil {
-		panic(fmt.Errorf("failed to extract client id from buffer: %v", err))
-	}
-
-	if err := uuid.Validate(cid.String()); err != nil {
-		panic(fmt.Errorf("failed to validate client id (%v): %v", cid.String(), err))
-	}
-
-	return PacketWithClientID{Packet: Packet{b: b, h: hS}, cid: cid}
-}
-
-func (p PacketWithClientID) ClientID() uuid.UUID {
-	return p.cid
-}
-
-func (p PacketWithClientID) StripClientID() Packet {
-	buffer := p.b[uuidv4Size:]
-
-	return Packet{b: buffer, h: p.h}
-}
-
-type PacketWithClientIDAndSrcAddr struct {
-	PacketWithClientID
-
-	sa *net.UDPAddr
-}
-
-func NewPacketWithClientIDAndSrcAddr(sa *net.UDPAddr, buffer []byte, n int, clientId ...uuid.UUID) PacketWithClientIDAndSrcAddr {
-	if sa == nil {
-		panic("source address can't be nil")
-	}
-
-	pkt := NewPacketWithClientID(buffer, n, clientId...)
-
-	return PacketWithClientIDAndSrcAddr{PacketWithClientID: pkt, sa: sa}
-}
-
-func (p PacketWithClientIDAndSrcAddr) SrcAddr() *net.UDPAddr {
-	return p.sa
 }

@@ -131,7 +131,7 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 		case pkt := <-lReadCh:
 			if c, ok := cm.GetClient(pkt.ClientID()); ok {
 				go func() {
-					if err := c.WriteToWgRoutine(pkt.SrcAddr(), pkt.StripClientID(), cfg.SocketWriteTimeout); err != nil {
+					if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
 						if errors.Is(err, client.ErrWgRoutineClosed) {
 							slog.Debug("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
 						} else {
@@ -156,7 +156,7 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 				}
 
 				go func() {
-					if err := c.WriteToWgRoutine(pkt.SrcAddr(), pkt.StripClientID(), cfg.SocketWriteTimeout); err != nil {
+					if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
 						if errors.Is(err, client.ErrWgRoutineClosed) {
 							slog.Debug("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
 						} else {

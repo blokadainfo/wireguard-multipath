@@ -87,7 +87,7 @@ func (r *wgRoutine) Read() (packet.Packet, error) {
 	return pkt, nil
 }
 
-func (r *wgRoutine) Write(pkt packet.Packet, deadline time.Duration) error {
+func (r *wgRoutine) Write(pkt packet.PacketWithClientIDAndSrcAddr, deadline time.Duration) error {
 	r.l.Lock()
 	defer r.l.Unlock()
 
@@ -99,7 +99,7 @@ func (r *wgRoutine) Write(pkt packet.Packet, deadline time.Duration) error {
 		return fmt.Errorf("failed to set write deadline for wg socket: %v", err)
 	}
 
-	if _, err := r.wgSock.WriteToUDP(pkt.Bytes(), r.wgAddr); err != nil {
+	if _, err := r.wgSock.WriteToUDP(pkt.StripClientID(), r.wgAddr); err != nil {
 		return fmt.Errorf("failed to write to wg socket: %v", err)
 	}
 
