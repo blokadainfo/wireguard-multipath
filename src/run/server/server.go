@@ -34,11 +34,11 @@ func Run(cfg config.ServerConfig) {
 	slog.Info("Listening", "address", lAddr.String())
 
 	// Read from listener socket and send to the lReadCh
-	lReadCh := make(chan packet.PacketWithClientIDAndSrcAddr) // TODO: Buffer of 1000?
+	lReadCh := make(chan packet.PacketWithClientIDAndSrcAddr, 1000)
 	go readFromListener(ctx, lSock, lReadCh)
 
 	// Receive from lWriteCh and write to the listener socket
-	lWriteCh := make(chan packet.PacketWithSrcAddrs) // TODO: Buffer of 1000?
+	lWriteCh := make(chan packet.PacketWithSrcAddrs, 1000)
 	go writeToListener(ctx, lSock, lWriteCh)
 
 	// Make a thread-safe shared client map variable
