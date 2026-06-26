@@ -38,8 +38,8 @@ func (c *Client) CloseWgRoutine() error {
 	return c.r.Close()
 }
 
-func (c *Client) ReadFromWgRoutine() (packet.PacketWithSrcAddrs, error) {
-	pkt, err := c.r.Read() // WARN: This is blocking
+func (c *Client) ReadFromWgRoutine(bp *packet.BufferPool) (packet.PacketWithSrcAddrs, error) {
+	pkt, err := c.r.Read(bp) // WARN: This is blocking
 	if err != nil {
 		return packet.PacketWithSrcAddrs{}, err
 	}

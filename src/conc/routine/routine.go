@@ -56,10 +56,13 @@ func (r *Routine) Close() error {
 	return r.sock.Close()
 }
 
-func (r *Routine) Read() (packet.Packet, error) {
-	buffer := make([]byte, packet.BufferSize)
+// If error is returned this function handles putting the buffer back into the pool
+func (r *Routine) Read(bp *packet.BufferPool) (packet.Packet, error) {
+	buffer := bp.Get()
 	n, _, err := r.sock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
+		bp.Put(buffer)
+
 		if r.closed.Load() {
 			return packet.Packet{}, ErrRoutineClosed
 		}

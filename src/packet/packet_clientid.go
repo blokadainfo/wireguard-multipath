@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"net"
 	"slices"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 )
@@ -36,7 +37,7 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 		}
 		hS := fmt.Sprintf("%x", h.Sum(nil))
 
-		return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS}, cid: clientId[0], offset: 0}
+		return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}, cid: clientId[0], offset: 0}
 	}
 
 	if n <= uuidv4Size {
@@ -54,16 +55,24 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 	}
 	hS := fmt.Sprintf("%x", h.Sum(nil))
 
-	return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS}, cid: cid, offset: uuidv4Size}
+	return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}, cid: cid, offset: uuidv4Size}
 }
 
 // Redefined Bytes() method which returns bytes with the client id prefixed
 func (p PacketWithClientID) Bytes() []byte {
+	if p.freed.Load() {
+		panic("PacketWithClientID.Bytes(): trying to access bytes of a freed packet")
+	}
+
 	return slices.Concat(p.cid[:], p.buffer[p.offset:p.n])
 }
 
 // Similar to Bytes() method but returns the bytes without client id
 func (p PacketWithClientID) StripClientID() []byte {
+	if p.freed.Load() {
+		panic("PacketWithClientID.StripClientID(): trying to access bytes of a freed packet")
+	}
+
 	return p.buffer[p.offset:p.n]
 }
 

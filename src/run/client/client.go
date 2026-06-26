@@ -39,31 +39,34 @@ func Run(cfg config.ClientConfig) {
 	// Make a thread-safe shared source address variable
 	srcAddr := routine.NewSrcAddr()
 
+	// Make a buffer pool for reading and writing packets
+	bp := packet.NewBufferPool()
+
 	// Generate a client id for the packet header (UUIDv4)
 	clientId := uuid.New()
 	slog.Info("Generated new client id", "client_id", clientId.String())
 
 	// Read from listener socket and send to the READ ch
 	lReadCh := make(chan packet.PacketWithClientID, 1000)
-	go readFromListener(ctx, lSock, lReadCh, srcAddr, clientId)
+	go readFromListener(ctx, bp, lSock, lReadCh, srcAddr, clientId)
 
 	// Write to the listener socket from the WRITE ch
 	lWriteCh := make(chan packet.Packet, 1000)
-	go writeToListener(ctx, lSock, lWriteCh, srcAddr)
+	go writeToListener(ctx, bp, lSock, lWriteCh, srcAddr)
 
 	// Make a thread-safe shared routine map variable
 	rm := routine.NewRoutineMap()
 
 	// Monitor all interfaces and automatically create/destroy sockets on each one
-	go monitorInterfaces(ctx, cfg, rm, lWriteCh)
-	go writeToInterfaces(ctx, cfg, rm, lReadCh)
+	go monitorInterfaces(ctx, cfg, rm, bp, lWriteCh)
+	go writeToInterfaces(ctx, cfg, rm, bp, lReadCh)
 
 	// Block until an interrupt is received
 	interrupt.Wait(ctx)
 	ctxCancel() // Cancel immediately so all goroutines clean up nicely
 }
 
-func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
+func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -72,10 +75,11 @@ func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan pack
 		default:
 		}
 
-		buffer := make([]byte, packet.BufferSize)
+		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
 			slog.Error("Failed to read data from the listener socket", "error", err)
+			bp.Put(buffer)
 			continue
 		}
 		srcAddr.SetAddress(sa)
@@ -91,7 +95,7 @@ func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan pack
 	}
 }
 
-func writeToListener(ctx context.Context, lSock *net.UDPConn, lWriteCh chan packet.Packet, srcAddr *routine.SrcAddr) {
+func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh chan packet.Packet, srcAddr *routine.SrcAddr) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -103,11 +107,14 @@ func writeToListener(ctx context.Context, lSock *net.UDPConn, lWriteCh chan pack
 			} else {
 				slog.Debug("Written data to the listener socket", "address", srcAddr.String(), "packet", pkt.String())
 			}
+
+			bp.PutP(pkt)
+			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }
 
-func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, lWriteCh chan packet.Packet) {
+func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lWriteCh chan packet.Packet) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,14 +192,14 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			}
 
 			slog.Info("Adding new interface", "interface", ifname, "address", ifaddr)
-			go createInterfaceRoutine(ctx, cfg, rm, ifname, ifaddr, lWriteCh)
+			go createInterfaceRoutine(ctx, cfg, rm, bp, ifname, ifaddr, lWriteCh)
 		}
 
 		time.Sleep(time.Second)
 	}
 }
 
-func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, ifname string, ifaddr string, lWriteCh chan packet.Packet) {
+func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, ifaddr string, lWriteCh chan packet.Packet) {
 	rtn, err := routine.NewRoutine(ifname, ifaddr, cfg.ServerAddr)
 	if err != nil {
 		slog.Error("Failed to create routine", "interface", ifname, "address", ifaddr, "error", err)
@@ -204,10 +211,10 @@ func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *ro
 		return
 	}
 
-	go readFromInterface(ctx, rm, ifname, rtn, lWriteCh)
+	go readFromInterface(ctx, rm, bp, ifname, rtn, lWriteCh)
 }
 
-func readFromInterface(ctx context.Context, rm *routine.RoutineMap, ifname string, rtn *routine.Routine, lWriteCh chan packet.Packet) {
+func readFromInterface(ctx context.Context, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, rtn *routine.Routine, lWriteCh chan packet.Packet) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -216,7 +223,7 @@ func readFromInterface(ctx context.Context, rm *routine.RoutineMap, ifname strin
 		default:
 		}
 
-		pkt, err := rtn.Read()
+		pkt, err := rtn.Read(bp)
 		if err != nil {
 			if errors.Is(err, routine.ErrRoutineClosed) {
 				slog.Debug("Failed to read, removing routine", "interface", ifname, "error", err)
@@ -242,7 +249,7 @@ func readFromInterface(ctx context.Context, rm *routine.RoutineMap, ifname strin
 	}
 }
 
-func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, lReadCh chan packet.PacketWithClientID) {
+func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lReadCh chan packet.PacketWithClientID) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -269,6 +276,9 @@ func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			}
 			wg.Wait()
 			slog.Debug("Written data to all interfaces", "packet", pkt.String())
+
+			bp.PutPCID(pkt)
+			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }

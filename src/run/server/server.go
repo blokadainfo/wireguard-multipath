@@ -33,13 +33,16 @@ func Run(cfg config.ServerConfig) {
 	defer lSock.Close()
 	slog.Info("Listening", "address", lAddr.String())
 
+	// Make a buffer pool for reading and writing packets
+	bp := packet.NewBufferPool()
+
 	// Read from listener socket and send to the lReadCh
 	lReadCh := make(chan packet.PacketWithClientIDAndSrcAddr, 1000)
-	go readFromListener(ctx, lSock, lReadCh)
+	go readFromListener(ctx, bp, lSock, lReadCh)
 
 	// Receive from lWriteCh and write to the listener socket
 	lWriteCh := make(chan packet.PacketWithSrcAddrs, 1000)
-	go writeToListener(ctx, lSock, lWriteCh)
+	go writeToListener(ctx, bp, lSock, lWriteCh)
 
 	// Make a thread-safe shared client map variable
 	cm := client.NewClientMap()
@@ -51,14 +54,14 @@ func Run(cfg config.ServerConfig) {
 	//
 	// If the client (based on client ID present in the packet) doesn't exist,
 	// creates it and starts a goroutine for reading from it's socket to the wireguard server and sending to lWriteCh
-	go writeToClientWgRoutines(ctx, cfg, cm, lReadCh, lWriteCh)
+	go writeToClientWgRoutines(ctx, cfg, cm, bp, lReadCh, lWriteCh)
 
 	// Block until an interrupt is received
 	interrupt.Wait(ctx)
 	ctxCancel() // Cancel immediately so all goroutines clean up nicely
 }
 
-func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientIDAndSrcAddr) {
+func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientIDAndSrcAddr) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -67,10 +70,11 @@ func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan pack
 		default:
 		}
 
-		buffer := make([]byte, packet.BufferSize)
+		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
 			slog.Error("Failed to read data from the listener socket", "error", err)
+			bp.Put(buffer)
 			continue
 		}
 		pkt := packet.NewPacketWithClientIDAndSrcAddr(sa, buffer, n)
@@ -85,7 +89,7 @@ func readFromListener(ctx context.Context, lSock *net.UDPConn, lReadCh chan pack
 	}
 }
 
-func writeToListener(ctx context.Context, lSock *net.UDPConn, lWriteCh chan packet.PacketWithSrcAddrs) {
+func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh chan packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -98,6 +102,9 @@ func writeToListener(ctx context.Context, lSock *net.UDPConn, lWriteCh chan pack
 				} else {
 					slog.Debug("Written data to the listener socket", "address", srcAddr.String(), "packet", pkt.String())
 				}
+
+				bp.PutPSA(pkt)
+				slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 			}
 		}
 	}
@@ -122,7 +129,7 @@ func monitorClients(ctx context.Context, cm *client.ClientMap) {
 	}
 }
 
-func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *client.ClientMap, lReadCh chan packet.PacketWithClientIDAndSrcAddr, lWriteCh chan packet.PacketWithSrcAddrs) {
+func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *client.ClientMap, bp *packet.BufferPool, lReadCh chan packet.PacketWithClientIDAndSrcAddr, lWriteCh chan packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -144,6 +151,9 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 					} else {
 						slog.Debug("Written to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 					}
+
+					bp.PutPCIDSA(pkt)
+					slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 				}()
 			} else {
 				slog.Info("Creating new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
@@ -173,15 +183,18 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 					} else {
 						slog.Debug("Written to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 					}
+
+					bp.PutPCIDSA(pkt)
+					slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 				}()
 
-				go readFromClientWgRoutine(ctx, cm, pkt.ClientID(), c, lWriteCh)
+				go readFromClientWgRoutine(ctx, cm, bp, pkt.ClientID(), c, lWriteCh)
 			}
 		}
 	}
 }
 
-func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, clientId uuid.UUID, c *client.Client, lWriteCh chan packet.PacketWithSrcAddrs) {
+func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, bp *packet.BufferPool, clientId uuid.UUID, c *client.Client, lWriteCh chan packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -190,7 +203,7 @@ func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, clientId
 		default:
 		}
 
-		pkt, err := c.ReadFromWgRoutine()
+		pkt, err := c.ReadFromWgRoutine(bp)
 		if err != nil {
 			if errors.Is(err, client.ErrWgRoutineClosed) {
 				slog.Debug("Failed to read, removing client", "client_id", clientId.String(), "error", err)

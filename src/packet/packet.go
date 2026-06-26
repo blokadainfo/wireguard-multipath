@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"hash/crc32"
 	"net"
+	"sync/atomic"
 )
 
 type Packet struct {
 	buffer []byte // buffer of original size
 	n      int    // number of bytes that are actually written to the buffer
 	hash   string // hash of the actually written bytes
+
+	freed *atomic.Bool
 }
 
 func NewPacket(buffer []byte, n int) Packet {
@@ -23,10 +26,22 @@ func NewPacket(buffer []byte, n int) Packet {
 	}
 	hS := fmt.Sprintf("%x", h.Sum(nil))
 
-	return Packet{buffer: buffer, n: n, hash: hS}
+	return Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}
+}
+
+func (p Packet) free() {
+	if p.freed.Load() {
+		panic("Packet.free(): trying to free an already freed packet")
+	}
+
+	p.freed.Store(true)
 }
 
 func (p Packet) Bytes() []byte {
+	if p.freed.Load() {
+		panic("Packet.Bytes(): trying to access bytes of a freed packet")
+	}
+
 	return p.buffer[:p.n]
 }
 

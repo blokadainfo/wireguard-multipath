@@ -54,10 +54,12 @@ func (r *wgRoutine) Close() error {
 	return r.wgSock.Close()
 }
 
-func (r *wgRoutine) Read() (packet.Packet, error) {
-	buffer := make([]byte, packet.BufferSize)
+func (r *wgRoutine) Read(bp *packet.BufferPool) (packet.Packet, error) {
+	buffer := bp.Get()
 	n, _, err := r.wgSock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
+		bp.Put(buffer)
+
 		if r.closed.Load() {
 			return packet.Packet{}, ErrWgRoutineClosed
 		}
