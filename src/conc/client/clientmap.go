@@ -46,7 +46,7 @@ func (cm *ClientMap) DelClient(clientId uuid.UUID) (bool, error) {
 	defer cm.l.Unlock()
 
 	if c, ok := cm.m[clientId]; ok {
-		err := c.CloseWgRoutine() // TODO: should this be a goroutine?
+		err := c.CloseWgRoutine()
 		delete(cm.m, clientId)
 		return true, err
 	}
@@ -58,12 +58,14 @@ func (cm *ClientMap) DelInactiveClients() {
 	cm.l.Lock()
 	defer cm.l.Unlock()
 
-	var errs []error
 	for clientId, c := range cm.m {
 		if !c.IsActive() {
 			slog.Info("Deleting inactive client", "client_id", clientId.String())
-			err := c.CloseWgRoutine() // TODO: should this be a goroutine?
-			errs = append(errs, fmt.Errorf("failed to close wg routine for client with id %v: %v", clientId.String(), err))
+
+			if err := c.CloseWgRoutine(); err != nil {
+				slog.Error("Failed to close wg routine", "client_id", clientId.String(), "error", err)
+			}
+
 			delete(cm.m, clientId)
 		}
 	}

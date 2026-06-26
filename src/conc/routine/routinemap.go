@@ -40,7 +40,7 @@ func (rm *RoutineMap) SetRoutine(ifname string, rtn *Routine) error {
 
 	var err error
 	if r, ok := rm.m[ifname]; ok {
-		err = r.Close() // TODO: should this be a goroutine?
+		err = r.Close()
 	}
 
 	rm.m[ifname] = rtn
@@ -52,7 +52,7 @@ func (rm *RoutineMap) DelRoutine(ifname string) (bool, error) {
 	defer rm.l.Unlock()
 
 	if r, ok := rm.m[ifname]; ok {
-		err := r.Close() // TODO: should this be a goroutine?
+		err := r.Close()
 		delete(rm.m, ifname)
 		return true, err
 	}

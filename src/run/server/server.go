@@ -137,6 +137,10 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 						} else {
 							slog.Error("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
 						}
+
+						if _, err := cm.DelClient(pkt.ClientID()); err != nil {
+							slog.Error("Failed to delete client from the client map", "client_id", pkt.ClientID().String(), "error", err)
+						}
 					} else {
 						slog.Debug("Written to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 					}
@@ -161,6 +165,10 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 							slog.Debug("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
 						} else {
 							slog.Error("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+						}
+
+						if _, err := cm.DelClient(pkt.ClientID()); err != nil {
+							slog.Error("Failed to delete client from the client map", "client_id", pkt.ClientID().String(), "error", err)
 						}
 					} else {
 						slog.Debug("Written to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())

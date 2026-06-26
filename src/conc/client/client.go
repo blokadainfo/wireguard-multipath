@@ -35,25 +35,31 @@ func (c *Client) CloseWgRoutine() error {
 	defer c.l.Unlock()
 
 	c.conns = slices.Delete(c.conns, 0, len(c.conns))
-	return c.r.Close() // TODO: should this be a goroutine?
+	return c.r.Close()
 }
 
 func (c *Client) ReadFromWgRoutine() (packet.PacketWithSrcAddrs, error) {
-	c.l.Lock()
+	pkt, err := c.r.Read() // WARN: This is blocking
+	if err != nil {
+		return packet.PacketWithSrcAddrs{}, err
+	}
 
-	c.conns = slices.DeleteFunc(c.conns, func(conn *Connection) bool {
-		return conn.IsStale()
-	})
+	c.l.RLock()
+	defer c.l.RUnlock()
 
 	srcAddrs := make([]*net.UDPAddr, 0, len(c.conns))
 	for _, conn := range c.conns {
+		if conn.IsStale() {
+			continue
+		}
+
 		srcAddrs = append(srcAddrs, conn.GetSrcAddr())
 	}
 
-	c.l.Unlock()
+	if len(srcAddrs) == 0 {
+		return packet.PacketWithSrcAddrs{}, fmt.Errorf("no active connections to send to")
+	}
 
-	// WARN: This is blocking
-	pkt, err := c.r.Read()
 	pktWSA := packet.NewPacketWithSrcAddrs(pkt, srcAddrs)
 
 	return pktWSA, err
@@ -63,32 +69,34 @@ func (c *Client) WriteToWgRoutine(pkt packet.PacketWithClientIDAndSrcAddr, deadl
 	c.l.Lock()
 	defer c.l.Unlock()
 
-	found := false
-	for _, conn := range c.conns {
-		if conn.SameSrcAddr(pkt.SrcAddr()) {
-			found = true
-			conn.UpdateLastSeen()
-			break
-		}
-	}
-	if !found {
-		conn := NewConnection(pkt.SrcAddr())
-		conn.UpdateLastSeen()
-		c.conns = append(c.conns, conn)
+	if err := c.r.Write(pkt, deadline); err != nil {
+		return err
 	}
 
-	return c.r.Write(pkt, deadline)
+	for _, conn := range c.conns {
+		if conn.SameSrcAddr(pkt.SrcAddr()) {
+			conn.UpdateLastSeen()
+			return nil
+		}
+	}
+
+	conn := NewConnection(pkt.SrcAddr())
+	c.conns = append(c.conns, conn)
+
+	return nil
 }
 
 func (c *Client) IsActive() bool {
-	c.l.RLock()
-	defer c.l.RUnlock()
+	c.l.Lock()
+	defer c.l.Unlock()
 
-	for _, conn := range c.conns {
-		if !conn.IsStale() {
-			return true
-		}
+	c.conns = slices.DeleteFunc(c.conns, func(conn *Connection) bool {
+		return conn.IsStale()
+	})
+
+	if len(c.conns) == 0 {
+		return false
 	}
 
-	return false
+	return true
 }

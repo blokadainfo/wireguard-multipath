@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blokadainfo/wireguard-multipath/src/packet"
@@ -17,9 +17,7 @@ type wgRoutine struct {
 	clientId uuid.UUID
 	wgSock   *net.UDPConn
 	wgAddr   *net.UDPAddr
-	closed   bool
-	lastSeen time.Time
-	l        sync.RWMutex
+	closed   atomic.Bool
 }
 
 func NewWgRoutine(clientId uuid.UUID, wgServerAddr string) (*wgRoutine, error) {
@@ -42,21 +40,16 @@ func NewWgRoutine(clientId uuid.UUID, wgServerAddr string) (*wgRoutine, error) {
 		clientId: clientId,
 		wgSock:   wgSock,
 		wgAddr:   wgAddr,
-		closed:   false,
-		lastSeen: time.Time{},
-		l:        sync.RWMutex{},
+		closed:   atomic.Bool{},
 	}, nil
 }
 
 func (r *wgRoutine) Close() error {
-	r.l.Lock()
-	defer r.l.Unlock()
-
-	if r.closed {
+	if r.closed.Load() {
 		return nil
 	}
 
-	r.closed = true
+	r.closed.Store(true)
 
 	return r.wgSock.Close()
 }
@@ -65,33 +58,20 @@ func (r *wgRoutine) Read() (packet.Packet, error) {
 	buffer := make([]byte, packet.BufferSize)
 	n, _, err := r.wgSock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
-		// WARN: Has to be after the blocking action
-		r.l.RLock()
-		defer r.l.RUnlock()
-
-		if r.closed {
+		if r.closed.Load() {
 			return packet.Packet{}, ErrWgRoutineClosed
 		}
 
 		return packet.Packet{}, fmt.Errorf("failed to read from wg socket: %v", err)
 	}
 
-	// WARN: Has to be after the blocking action
-	r.l.Lock()
-	defer r.l.Unlock()
-
 	pkt := packet.NewPacket(buffer, n)
-
-	r.lastSeen = time.Now()
 
 	return pkt, nil
 }
 
 func (r *wgRoutine) Write(pkt packet.PacketWithClientIDAndSrcAddr, deadline time.Duration) error {
-	r.l.Lock()
-	defer r.l.Unlock()
-
-	if r.closed {
+	if r.closed.Load() {
 		return ErrWgRoutineClosed
 	}
 

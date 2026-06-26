@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blokadainfo/wireguard-multipath/src/ifaceutils"
@@ -14,13 +14,11 @@ import (
 var ErrRoutineClosed = errors.New("routine is closed")
 
 type Routine struct {
-	ifname   string
-	sock     *net.UDPConn
-	srcAddr  *net.UDPAddr
-	dstAddr  *net.UDPAddr
-	closed   bool
-	lastSeen time.Time
-	l        sync.RWMutex
+	ifname  string
+	sock    *net.UDPConn
+	srcAddr *net.UDPAddr
+	dstAddr *net.UDPAddr
+	closed  atomic.Bool
 }
 
 func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, error) {
@@ -40,25 +38,20 @@ func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, erro
 	}
 
 	return &Routine{
-		ifname:   ifname,
-		sock:     sock,
-		srcAddr:  srcAddr,
-		dstAddr:  dstAddr,
-		closed:   false,
-		lastSeen: time.Time{},
-		l:        sync.RWMutex{},
+		ifname:  ifname,
+		sock:    sock,
+		srcAddr: srcAddr,
+		dstAddr: dstAddr,
+		closed:  atomic.Bool{},
 	}, nil
 }
 
 func (r *Routine) Close() error {
-	r.l.Lock()
-	defer r.l.Unlock()
-
-	if r.closed {
+	if r.closed.Load() {
 		return nil
 	}
 
-	r.closed = true
+	r.closed.Store(true)
 
 	return r.sock.Close()
 }
@@ -67,33 +60,20 @@ func (r *Routine) Read() (packet.Packet, error) {
 	buffer := make([]byte, packet.BufferSize)
 	n, _, err := r.sock.ReadFromUDP(buffer) // WARN: This is blocking
 	if err != nil {
-		// WARN: Has to be after the blocking action
-		r.l.RLock()
-		defer r.l.RUnlock()
-
-		if r.closed {
+		if r.closed.Load() {
 			return packet.Packet{}, ErrRoutineClosed
 		}
 
 		return packet.Packet{}, fmt.Errorf("failed to read from socket: %v", err)
 	}
 
-	// WARN: Has to be after the blocking action
-	r.l.Lock()
-	defer r.l.Unlock()
-
 	pkt := packet.NewPacket(buffer, n)
-
-	r.lastSeen = time.Now()
 
 	return pkt, nil
 }
 
 func (r *Routine) Write(pkt packet.PacketWithClientID, deadline time.Duration) error {
-	r.l.Lock()
-	defer r.l.Unlock()
-
-	if r.closed {
+	if r.closed.Load() {
 		return ErrRoutineClosed
 	}
 
@@ -110,8 +90,5 @@ func (r *Routine) Write(pkt packet.PacketWithClientID, deadline time.Duration) e
 
 // Returns true if the srcAddr stayed the same, otherwise false
 func (r *Routine) SameSrcAddr(ifaddr string) bool {
-	r.l.RLock()
-	defer r.l.RUnlock()
-
 	return r.srcAddr.String() == fmt.Sprintf("%v:0", ifaddr)
 }
