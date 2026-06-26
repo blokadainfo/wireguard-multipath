@@ -137,58 +137,35 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 			return
 		case pkt := <-lReadCh:
 			if c, ok := cm.GetClient(pkt.ClientID()); ok {
-				go func() {
-					if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
-						if errors.Is(err, client.ErrWgRoutineClosed) {
-							slog.Debug("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
-						} else {
-							slog.Error("Failed to write to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
-						}
-
-						if _, err := cm.DelClient(pkt.ClientID()); err != nil {
-							slog.Error("Failed to delete client from the client map", "client_id", pkt.ClientID().String(), "error", err)
-						}
-					} else {
-						slog.Debug("Written to the wg routine for already existing client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
-					}
-
+				if err := c.WriteToQueue(pkt); err != nil {
+					slog.Error("Failed to write the packet to the queue", "client_id", pkt.ClientID().String(), "error", err, "seq", "1")
 					bp.PutPCIDSA(pkt)
-					slog.Debug("Returned buffer to the pool", "packet", pkt.String())
-				}()
+					continue
+				}
 			} else {
 				slog.Info("Creating new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 				c, err := client.NewClient(pkt.ClientID(), cfg.WireguardAddr)
 				if err != nil {
 					slog.Error("Failed to create client", "client_id", pkt.ClientID().String(), "error", err)
+					bp.PutPCIDSA(pkt)
 					continue
 				}
 
 				slog.Debug("Adding client to client map", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
 				if err := cm.AddClient(pkt.ClientID(), c); err != nil {
 					slog.Error("Failed to add client to the client map", "client_id", pkt.ClientID().String(), "error", err)
+					bp.PutPCIDSA(pkt)
 					continue
 				}
 
-				go func() {
-					if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
-						if errors.Is(err, client.ErrWgRoutineClosed) {
-							slog.Debug("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
-						} else {
-							slog.Error("Failed to write to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
-						}
-
-						if _, err := cm.DelClient(pkt.ClientID()); err != nil {
-							slog.Error("Failed to delete client from the client map", "client_id", pkt.ClientID().String(), "error", err)
-						}
-					} else {
-						slog.Debug("Written to the wg routine for the new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
-					}
-
-					bp.PutPCIDSA(pkt)
-					slog.Debug("Returned buffer to the pool", "packet", pkt.String())
-				}()
-
 				go readFromClientWgRoutine(ctx, cm, bp, pkt.ClientID(), c, lWriteCh)
+				go writeToClientWgRoutine(ctx, cfg, cm, bp, pkt.ClientID(), c)
+
+				if err := c.WriteToQueue(pkt); err != nil {
+					slog.Error("Failed to write the packet to the queue", "client_id", pkt.ClientID().String(), "error", err, "seq", "2")
+					bp.PutPCIDSA(pkt)
+					continue
+				}
 			}
 		}
 	}
@@ -225,6 +202,38 @@ func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, bp *pack
 			slog.Debug("Context is done", "func", "readFromClientWgRoutine()", "seq", "2")
 			return
 		case lWriteCh <- pkt:
+		}
+	}
+}
+
+func writeToClientWgRoutine(ctx context.Context, cfg config.ServerConfig, cm *client.ClientMap, bp *packet.BufferPool, clientId uuid.UUID, c *client.Client) {
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Debug("Context is done", "func", "writeToClientWgRoutine()", "seq", "1")
+			return
+		case pkt := <-c.ReadFromQueue():
+			if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
+				if errors.Is(err, client.ErrWgRoutineClosed) {
+					slog.Debug("Failed to write to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+				} else {
+					slog.Error("Failed to write to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+				}
+
+				if _, err := cm.DelClient(pkt.ClientID()); err != nil {
+					slog.Error("Failed to delete client from the client map", "client_id", clientId.String(), "error", err)
+				}
+
+				bp.PutPCIDSA(pkt)
+
+				// Closes the goroutine for writing to the wg routine
+				return
+			}
+
+			slog.Debug("Written to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
+
+			bp.PutPCIDSA(pkt)
+			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }

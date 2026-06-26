@@ -13,6 +13,7 @@ import (
 
 type Client struct {
 	r     *wgRoutine
+	q     chan packet.PacketWithClientIDAndSrcAddr
 	conns []*Connection
 	l     sync.RWMutex
 }
@@ -25,9 +26,24 @@ func NewClient(clientId uuid.UUID, wgServerAddr string) (*Client, error) {
 
 	return &Client{
 		r:     r,
+		q:     make(chan packet.PacketWithClientIDAndSrcAddr, 1000),
 		conns: make([]*Connection, 0, 5),
 		l:     sync.RWMutex{},
 	}, nil
+}
+
+func (c *Client) ReadFromQueue() <-chan packet.PacketWithClientIDAndSrcAddr {
+	return c.q
+}
+
+// WARN: Drops packet if the queue is full
+func (c *Client) WriteToQueue(pkt packet.PacketWithClientIDAndSrcAddr) error {
+	select {
+	case c.q <- pkt:
+		return nil
+	default:
+		return fmt.Errorf("queue is full, dropping packet") // TODO: Make sure this is desired behaviour
+	}
 }
 
 func (c *Client) CloseWgRoutine() error {
@@ -66,12 +82,12 @@ func (c *Client) ReadFromWgRoutine(bp *packet.BufferPool) (packet.PacketWithSrcA
 }
 
 func (c *Client) WriteToWgRoutine(pkt packet.PacketWithClientIDAndSrcAddr, deadline time.Duration) error {
-	c.l.Lock()
-	defer c.l.Unlock()
-
 	if err := c.r.Write(pkt, deadline); err != nil {
 		return err
 	}
+
+	c.l.Lock()
+	defer c.l.Unlock()
 
 	for _, conn := range c.conns {
 		if conn.SameSrcAddr(pkt.SrcAddr()) {
