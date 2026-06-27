@@ -17,8 +17,21 @@ var (
 		ExtractCIDR(MustParseCIDR("169.254.0.0/16")),
 	}
 
+	ErrNoAddressFound    = errors.New("no address was found")
 	ErrAddressNotAllowed = errors.New("address is not allowed")
 )
+
+func KnownError(err error) bool {
+	if errors.Is(err, ErrNoAddressFound) {
+		return true
+	}
+
+	if errors.Is(err, ErrAddressNotAllowed) {
+		return true
+	}
+
+	return false
+}
 
 func ListInterfaces() {
 	interfaces, err := net.Interfaces()
@@ -42,7 +55,7 @@ func GetAddressByInterface(iface net.Interface) (string, error) {
 		return "", err
 	}
 	if len(addrs) == 0 {
-		return "", fmt.Errorf("failed to get address of the interface: %v", iface.Name)
+		return "", ErrNoAddressFound
 	}
 
 	for _, addr := range addrs {

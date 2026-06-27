@@ -83,6 +83,11 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				slog.Debug("Closed listener socket")
+				return
+			}
+
 			// TODO: Instead of error, should the program log.Fatal here?
 			slog.Error("Failed to read data from the listener socket", "error", err)
 			bp.Put(buffer)
@@ -144,15 +149,8 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			}
 
 			ifaddr, err := ifaceutils.GetAddressByInterface(*iface)
-			if errors.Is(err, ifaceutils.ErrAddressNotAllowed) {
-				slog.Debug("Failed to get interface address, deleting routine", "interface", ifname, "error", err)
-				if _, err := rm.DelRoutine(ifname); err != nil {
-					slog.Error("Failed to delete routine", "interface", ifname, "error", err)
-				}
-				continue
-			}
 			if err != nil {
-				slog.Error("Failed to get interface address, deleting routine", "interface", ifname, "error", err)
+				slog.Warn("Failed to get interface address, deleting routine", "interface", ifname, "error", err)
 				if _, err := rm.DelRoutine(ifname); err != nil {
 					slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 				}
@@ -184,7 +182,12 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 
 			ifaddr, err := ifaceutils.GetAddressByInterface(iface)
 			if err != nil {
-				slog.Debug("Failed to get address", "interface", ifname, "error", err)
+				if ifaceutils.KnownError(err) {
+					slog.Debug("Skipping interface", "interface", ifname, "error", err)
+					continue
+				}
+
+				slog.Error("Failed to get address", "interface", ifname, "error", err)
 				continue
 			}
 

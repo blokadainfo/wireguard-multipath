@@ -78,6 +78,11 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				slog.Debug("Closed listener socket")
+				return
+			}
+
 			// TODO: Instead of error, should the program log.Fatal here?
 			slog.Error("Failed to read data from the listener socket", "error", err)
 			bp.Put(buffer)
