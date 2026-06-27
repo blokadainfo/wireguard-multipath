@@ -1,8 +1,6 @@
 package packet
 
 import (
-	"fmt"
-	"hash/crc32"
 	"net"
 	"sync/atomic"
 )
@@ -10,7 +8,6 @@ import (
 type Packet struct {
 	buffer []byte // buffer of original size
 	n      int    // number of bytes that are actually written to the buffer
-	hash   string // hash of the actually written bytes
 
 	freed *atomic.Bool
 }
@@ -20,13 +17,7 @@ func NewPacket(buffer []byte, n int) Packet {
 		panic("packet contains no data")
 	}
 
-	h := crc32.NewIEEE()
-	if _, err := h.Write(buffer[:n]); err != nil {
-		panic("failed to write packet bytes to hash")
-	}
-	hS := fmt.Sprintf("%x", h.Sum(nil))
-
-	return Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}
+	return Packet{buffer: buffer, n: n, freed: &atomic.Bool{}}
 }
 
 func (p Packet) free() {
@@ -43,10 +34,6 @@ func (p Packet) Bytes() []byte {
 	}
 
 	return p.buffer[:p.n]
-}
-
-func (p Packet) String() string {
-	return p.hash
 }
 
 type PacketWithSrcAddrs struct {

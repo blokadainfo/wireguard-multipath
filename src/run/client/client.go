@@ -83,6 +83,7 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
+			// TODO: Instead of error, should the program log.Fatal here?
 			slog.Error("Failed to read data from the listener socket", "error", err)
 			bp.Put(buffer)
 			continue
@@ -90,7 +91,6 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 		srcAddr.SetAddress(sa)
 
 		pkt := packet.NewPacketWithClientID(buffer, n, clientId)
-		slog.Debug("Read data from the listener socket", "clientId", clientId.String(), "address", srcAddr.String(), "packet", pkt.String())
 
 		select {
 		case <-ctx.Done():
@@ -108,13 +108,10 @@ func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPC
 			return
 		case pkt := <-lWriteCh:
 			if _, err := lSock.WriteToUDP(pkt.Bytes(), srcAddr.GetAddress()); err != nil {
-				slog.Error("Failed to write to the listener socket", "address", srcAddr.String(), "packet", pkt.String(), "error", err)
-			} else {
-				slog.Debug("Written data to the listener socket", "address", srcAddr.String(), "packet", pkt.String())
+				slog.Error("Failed to write to the listener socket", "address", srcAddr.String(), "error", err)
 			}
 
 			bp.PutP(pkt)
-			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }
@@ -139,7 +136,7 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 		for ifname, rtn := range rm.GetRoutines() {
 			iface, err := net.InterfaceByName(ifname)
 			if err != nil {
-				slog.Info("Interface no longer exists, deleting routine", "interface", ifname)
+				slog.Warn("Interface no longer exists, deleting routine", "interface", ifname)
 				if _, err := rm.DelRoutine(ifname); err != nil {
 					slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 				}
@@ -163,7 +160,7 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 			}
 
 			if !rtn.SameSrcAddr(ifaddr) {
-				slog.Info("Interface changed address, deleting routine", "interface", ifname)
+				slog.Warn("Interface changed address, deleting routine", "interface", ifname)
 				if _, err := rm.DelRoutine(ifname); err != nil {
 					slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 				}
@@ -243,8 +240,6 @@ func readFromInterface(ctx context.Context, rm *routine.RoutineMap, bp *packet.B
 			return
 		}
 
-		slog.Debug("Read data from the routine socket", "interface", ifname, "packet", pkt.String())
-
 		select {
 		case <-ctx.Done():
 			slog.Debug("Context is done", "func", "readFromInterface()", "interface", ifname, "seq", 2)
@@ -266,7 +261,7 @@ func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 				wg.Go(func() {
 					if err := rtn.Write(pkt, cfg.SocketWriteTimeout); err != nil {
 						if errors.Is(err, routine.ErrRoutineClosed) {
-							slog.Debug("Failed to write, removing routine", "interface", ifname, "error", err)
+							slog.Debug("Failed to write because the routine is closed, removing routine", "interface", ifname, "error", err)
 						} else {
 							slog.Error("Failed to write, removing routine", "interface", ifname, "error", err)
 						}
@@ -274,16 +269,12 @@ func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 						if _, err := rm.DelRoutine(ifname); err != nil {
 							slog.Error("Failed to delete routine", "interface", ifname, "error", err)
 						}
-					} else {
-						slog.Debug("Written data to interface", "interface", ifname, "packet", pkt.String())
 					}
 				})
 			}
 			wg.Wait()
-			slog.Debug("Written data to all interfaces", "packet", pkt.String())
 
 			bp.PutPCID(pkt)
-			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }

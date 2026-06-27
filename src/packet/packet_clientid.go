@@ -2,7 +2,6 @@ package packet
 
 import (
 	"fmt"
-	"hash/crc32"
 	"net"
 	"slices"
 	"sync/atomic"
@@ -31,13 +30,7 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 	}
 
 	if len(clientId) == 1 {
-		h := crc32.NewIEEE()
-		if _, err := h.Write(buffer[:n]); err != nil {
-			panic("failed to write packet bytes to hash")
-		}
-		hS := fmt.Sprintf("%x", h.Sum(nil))
-
-		return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}, cid: clientId[0], offset: 0}
+		return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, freed: &atomic.Bool{}}, cid: clientId[0], offset: 0}
 	}
 
 	if n <= uuidv4Size {
@@ -49,13 +42,7 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 		panic(fmt.Errorf("failed to validate client id (%v): %v", cid.String(), err))
 	}
 
-	h := crc32.NewIEEE()
-	if _, err := h.Write(buffer[uuidv4Size:n]); err != nil {
-		panic("failed to write packet bytes to hash")
-	}
-	hS := fmt.Sprintf("%x", h.Sum(nil))
-
-	return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, hash: hS, freed: &atomic.Bool{}}, cid: cid, offset: uuidv4Size}
+	return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, freed: &atomic.Bool{}}, cid: cid, offset: uuidv4Size}
 }
 
 // Redefined Bytes() method which returns bytes with the client id prefixed

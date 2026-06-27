@@ -6,7 +6,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"time"
-	_ "time/tzdata" // TODO: This package will be automatically imported if you build with -tags timetzdata.
+	_ "time/tzdata"
 
 	"github.com/blokadainfo/wireguard-multipath/src/config"
 	"github.com/blokadainfo/wireguard-multipath/src/ifaceutils"

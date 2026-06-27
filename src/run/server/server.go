@@ -78,12 +78,12 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 		buffer := bp.Get()
 		n, sa, err := lSock.ReadFromUDP(buffer)
 		if err != nil {
+			// TODO: Instead of error, should the program log.Fatal here?
 			slog.Error("Failed to read data from the listener socket", "error", err)
 			bp.Put(buffer)
 			continue
 		}
 		pkt := packet.NewPacketWithClientIDAndSrcAddr(sa, buffer, n)
-		slog.Debug("Read data from the listener socket", "client_id", pkt.ClientID().String(), "address", sa.String(), "packet", pkt.String())
 
 		select {
 		case <-ctx.Done():
@@ -103,13 +103,10 @@ func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPC
 		case pkt := <-lWriteCh:
 			for _, srcAddr := range pkt.GetSourceAddresses() {
 				if _, err := lSock.WriteToUDP(pkt.Bytes(), srcAddr); err != nil {
-					slog.Error("Failed to write to the listener socket", "adress", srcAddr.String(), "packet", pkt.String(), "error", err)
-				} else {
-					slog.Debug("Written data to the listener socket", "address", srcAddr.String(), "packet", pkt.String())
+					slog.Error("Failed to write to the listener socket", "adress", srcAddr.String(), "error", err)
 				}
 
 				bp.PutPSA(pkt)
-				slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 			}
 		}
 	}
@@ -148,7 +145,7 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 					continue
 				}
 			} else {
-				slog.Info("Creating new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
+				slog.Info("Creating new client", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String())
 				c, err := client.NewClient(pkt.ClientID(), cfg.WireguardAddr)
 				if err != nil {
 					slog.Error("Failed to create client", "client_id", pkt.ClientID().String(), "error", err)
@@ -156,7 +153,7 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 					continue
 				}
 
-				slog.Debug("Adding client to client map", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
+				slog.Debug("Adding client to client map", "client_id", pkt.ClientID().String(), "address", pkt.SrcAddr().String())
 				if err := cm.AddClient(pkt.ClientID(), c); err != nil {
 					slog.Error("Failed to add client to the client map", "client_id", pkt.ClientID().String(), "error", err)
 					bp.PutPCIDSA(pkt)
@@ -200,7 +197,6 @@ func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, bp *pack
 			// Closes the goroutine for reading from the wg routine
 			return
 		}
-		slog.Debug("Read data from the client wg routine", "client_id", clientId.String(), "packet", pkt.String())
 
 		select {
 		case <-ctx.Done():
@@ -220,9 +216,9 @@ func writeToClientWgRoutine(ctx context.Context, cfg config.ServerConfig, cm *cl
 		case pkt := <-c.ReadFromQueue():
 			if err := c.WriteToWgRoutine(pkt, cfg.SocketWriteTimeout); err != nil {
 				if errors.Is(err, client.ErrWgRoutineClosed) {
-					slog.Debug("Failed to write to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+					slog.Debug("Failed to write to the wg routine for already existing client because the wg routine is closed", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "error", err)
 				} else {
-					slog.Error("Failed to write to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String(), "error", err)
+					slog.Error("Failed to write to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "error", err)
 				}
 
 				if _, err := cm.DelClient(pkt.ClientID()); err != nil {
@@ -235,10 +231,7 @@ func writeToClientWgRoutine(ctx context.Context, cfg config.ServerConfig, cm *cl
 				return
 			}
 
-			slog.Debug("Written to the wg routine for already existing client", "client_id", clientId.String(), "address", pkt.SrcAddr().String(), "packet", pkt.String())
-
 			bp.PutPCIDSA(pkt)
-			slog.Debug("Returned buffer to the pool", "packet", pkt.String())
 		}
 	}
 }
