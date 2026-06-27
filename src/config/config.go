@@ -8,6 +8,11 @@ import (
 	"github.com/blokadainfo/wireguard-multipath/src/glob"
 )
 
+type ProfilerConfig struct {
+	Enabled    bool   // WGMP_PROFILER_ENABLED
+	ListenAddr string // WGMP_PROFILER_LISTEN_ADDR
+}
+
 type LoggerConfig struct {
 	Debug bool // WGMP_LOGGER_DEBUG
 	JSON  bool // WGMP_LOGGER_JSON
@@ -25,6 +30,13 @@ type ServerConfig struct {
 	ListenAddr         string        // WGMP_SERVER_LISTEN_ADDR
 	WireguardAddr      string        // WGMP_SERVER_WIREGUARD_ADDR
 	SocketWriteTimeout time.Duration // WGMP_SERVER_SOCKET_WRITE_TIMEOUT_MS
+}
+
+func LoadProfiler() ProfilerConfig {
+	return ProfilerConfig{
+		Enabled:    envutils.GetBool("WGMP_PROFILER_ENABLED", false),
+		ListenAddr: envutils.GetString("WGMP_PROFILER_LISTEN_ADDR", "127.0.0.1:6060"),
+	}
 }
 
 func LoadLogger() LoggerConfig {

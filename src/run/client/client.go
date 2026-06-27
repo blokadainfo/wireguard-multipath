@@ -17,11 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func Run(cfg config.ClientConfig) {
-	// Make a shared ctx used for stopping all goroutines
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	defer ctxCancel()
-
+func Run(ctx context.Context, cfg config.ClientConfig) {
 	// Make a listener socket for client-side wg proxy
 	lAddr, err := net.ResolveUDPAddr("udp4", cfg.ListenAddr) // TODO: IPv6
 	if err != nil {
@@ -63,7 +59,6 @@ func Run(cfg config.ClientConfig) {
 
 	// Block until an interrupt is received
 	interrupt.Wait(ctx)
-	ctxCancel() // Cancel immediately so all goroutines clean up nicely
 }
 
 func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
