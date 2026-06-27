@@ -30,6 +30,16 @@ func Run(ctx context.Context, cfg config.ClientConfig) {
 		return
 	}
 	defer lSock.Close()
+
+	if err := lSock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
+		slog.Error("Error setting read buffer for local proxy socket", "address", cfg.ListenAddr, "error", err)
+		return
+	}
+	if err := lSock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
+		slog.Error("Error setting write buffer for local proxy socket", "address", cfg.ListenAddr, "error", err)
+		return
+	}
+
 	slog.Info("Listening", "address", lAddr.String())
 
 	// Make a thread-safe shared source address variable

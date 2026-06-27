@@ -24,17 +24,24 @@ type Routine struct {
 func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, error) {
 	dstAddr, err := net.ResolveUDPAddr("udp4", serverAddr) // TODO: IPv6
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve destination (server) address")
+		return nil, fmt.Errorf("failed to resolve destination (server) address: %v", err)
 	}
 
 	srcAddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%v:0", ifaddr)) // TODO: IPv6
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve source address, not using this interface")
+		return nil, fmt.Errorf("failed to resolve source address, not using this interface: %v", err)
 	}
 
 	sock, err := ifaceutils.BoundUdpConn(srcAddr, ifname)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface")
+		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface: %v", err)
+	}
+
+	if err := sock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
+		return nil, fmt.Errorf("failed to set read buffer, not using this interface: %v", err)
+	}
+	if err := sock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
+		return nil, fmt.Errorf("failed to set write buffer, not using this interface: %v", err)
 	}
 
 	return &Routine{

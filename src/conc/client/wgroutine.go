@@ -36,6 +36,13 @@ func NewWgRoutine(clientId uuid.UUID, wgServerAddr string) (*wgRoutine, error) {
 		return nil, fmt.Errorf("failed to create a socket to the Wireguard server")
 	}
 
+	if err := wgSock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
+		return nil, fmt.Errorf("failed to set read buffer: %v", err)
+	}
+	if err := wgSock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
+		return nil, fmt.Errorf("failed to set write buffer: %v", err)
+	}
+
 	return &wgRoutine{
 		clientId: clientId,
 		wgSock:   wgSock,

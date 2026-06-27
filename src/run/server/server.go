@@ -27,6 +27,16 @@ func Run(ctx context.Context, cfg config.ServerConfig) {
 		return
 	}
 	defer lSock.Close()
+
+	if err := lSock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
+		slog.Error("Error setting read buffer for local proxy socket", "address", cfg.ListenAddr, "error", err)
+		return
+	}
+	if err := lSock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
+		slog.Error("Error setting write buffer for local proxy socket", "address", cfg.ListenAddr, "error", err)
+		return
+	}
+
 	slog.Info("Listening", "address", lAddr.String())
 
 	// Make a buffer pool for reading and writing packets
