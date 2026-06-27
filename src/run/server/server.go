@@ -105,9 +105,9 @@ func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPC
 				if _, err := lSock.WriteToUDP(pkt.Bytes(), srcAddr); err != nil {
 					slog.Error("Failed to write to the listener socket", "adress", srcAddr.String(), "error", err)
 				}
-
-				bp.PutPSA(pkt)
 			}
+
+			bp.PutPSA(pkt)
 		}
 	}
 }
