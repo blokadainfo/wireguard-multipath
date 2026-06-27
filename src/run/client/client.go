@@ -71,7 +71,7 @@ func Run(ctx context.Context, cfg config.ClientConfig) {
 	interrupt.Wait(ctx)
 }
 
-func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
+func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan<- packet.PacketWithClientID, srcAddr *routine.SrcAddr, clientId uuid.UUID) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,7 +100,7 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 	}
 }
 
-func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh chan packet.Packet, srcAddr *routine.SrcAddr) {
+func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh <-chan packet.Packet, srcAddr *routine.SrcAddr) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,7 +116,7 @@ func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPC
 	}
 }
 
-func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lWriteCh chan packet.Packet) {
+func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lWriteCh chan<- packet.Packet) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -201,7 +201,7 @@ func monitorInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine
 	}
 }
 
-func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, ifaddr string, lWriteCh chan packet.Packet) {
+func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, ifaddr string, lWriteCh chan<- packet.Packet) {
 	rtn, err := routine.NewRoutine(ifname, ifaddr, cfg.ServerAddr)
 	if err != nil {
 		slog.Error("Failed to create routine", "interface", ifname, "address", ifaddr, "error", err)
@@ -216,7 +216,7 @@ func createInterfaceRoutine(ctx context.Context, cfg config.ClientConfig, rm *ro
 	go readFromInterface(ctx, rm, bp, ifname, rtn, lWriteCh)
 }
 
-func readFromInterface(ctx context.Context, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, rtn *routine.Routine, lWriteCh chan packet.Packet) {
+func readFromInterface(ctx context.Context, rm *routine.RoutineMap, bp *packet.BufferPool, ifname string, rtn *routine.Routine, lWriteCh chan<- packet.Packet) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -249,7 +249,7 @@ func readFromInterface(ctx context.Context, rm *routine.RoutineMap, bp *packet.B
 	}
 }
 
-func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lReadCh chan packet.PacketWithClientID) {
+func writeToInterfaces(ctx context.Context, cfg config.ClientConfig, rm *routine.RoutineMap, bp *packet.BufferPool, lReadCh <-chan packet.PacketWithClientID) {
 	for {
 		select {
 		case <-ctx.Done():

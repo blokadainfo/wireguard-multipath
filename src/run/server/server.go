@@ -66,7 +66,7 @@ func Run(ctx context.Context, cfg config.ServerConfig) {
 	interrupt.Wait(ctx)
 }
 
-func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan packet.PacketWithClientIDAndSrcAddr) {
+func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lReadCh chan<- packet.PacketWithClientIDAndSrcAddr) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -94,7 +94,7 @@ func readFromListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDP
 	}
 }
 
-func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh chan packet.PacketWithSrcAddrs) {
+func writeToListener(ctx context.Context, bp *packet.BufferPool, lSock *net.UDPConn, lWriteCh <-chan packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,7 +131,7 @@ func monitorClients(ctx context.Context, cm *client.ClientMap) {
 	}
 }
 
-func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *client.ClientMap, bp *packet.BufferPool, lReadCh chan packet.PacketWithClientIDAndSrcAddr, lWriteCh chan packet.PacketWithSrcAddrs) {
+func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *client.ClientMap, bp *packet.BufferPool, lReadCh <-chan packet.PacketWithClientIDAndSrcAddr, lWriteCh chan<- packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -173,7 +173,7 @@ func writeToClientWgRoutines(ctx context.Context, cfg config.ServerConfig, cm *c
 	}
 }
 
-func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, bp *packet.BufferPool, clientId uuid.UUID, c *client.Client, lWriteCh chan packet.PacketWithSrcAddrs) {
+func readFromClientWgRoutine(ctx context.Context, cm *client.ClientMap, bp *packet.BufferPool, clientId uuid.UUID, c *client.Client, lWriteCh chan<- packet.PacketWithSrcAddrs) {
 	for {
 		select {
 		case <-ctx.Done():

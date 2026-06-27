@@ -78,7 +78,7 @@ func (c *Client) ReadFromWgRoutine(bp *packet.BufferPool) (packet.PacketWithSrcA
 
 	pktWSA := packet.NewPacketWithSrcAddrs(pkt, srcAddrs)
 
-	return pktWSA, err
+	return pktWSA, nil
 }
 
 func (c *Client) WriteToWgRoutine(pkt packet.PacketWithClientIDAndSrcAddr, deadline time.Duration) error {
