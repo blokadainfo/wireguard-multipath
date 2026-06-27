@@ -22,7 +22,9 @@ func (c Connection) GetSrcAddr() *net.UDPAddr {
 }
 
 func (c Connection) SameSrcAddr(srcAddr *net.UDPAddr) bool {
-	return c.srcAddr.String() == srcAddr.String()
+	return c.srcAddr.Port == srcAddr.Port &&
+		c.srcAddr.Zone == srcAddr.Zone &&
+		c.srcAddr.IP.Equal(srcAddr.IP)
 }
 
 func (c Connection) IsStale() bool {
