@@ -34,7 +34,7 @@ func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, erro
 
 	sock, err := ifaceutils.BoundUDPConn(srcAddr, ifname)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface: %w", err)
+		return nil, fmt.Errorf("failed to create a socket bound to interface, not using this inteface: %w", err)
 	}
 
 	if err := sock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
