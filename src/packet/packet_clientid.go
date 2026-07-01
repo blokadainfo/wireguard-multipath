@@ -39,7 +39,7 @@ func NewPacketWithClientID(buffer []byte, n int, clientId ...uuid.UUID) PacketWi
 
 	cid := uuid.Must(uuid.FromBytes(buffer[:uuidv4Size]))
 	if err := uuid.Validate(cid.String()); err != nil {
-		panic(fmt.Errorf("failed to validate client id (%v): %v", cid.String(), err))
+		panic(fmt.Errorf("failed to validate client id (%v): %w", cid.String(), err))
 	}
 
 	return PacketWithClientID{Packet: Packet{buffer: buffer, n: n, freed: &atomic.Bool{}}, cid: cid, offset: uuidv4Size}

@@ -11,7 +11,9 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrWgRoutineClosed = errors.New("wireguard routine is closed")
+var (
+	ErrWgRoutineClosed = errors.New("wireguard routine is closed")
+)
 
 type wgRoutine struct {
 	clientId uuid.UUID
@@ -23,24 +25,24 @@ type wgRoutine struct {
 func NewWgRoutine(clientId uuid.UUID, wgServerAddr string) (*wgRoutine, error) {
 	wgAddr, err := net.ResolveUDPAddr("udp4", wgServerAddr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve destination (wireguard server) address")
+		return nil, fmt.Errorf("failed to resolve destination (wireguard server) address: %w", err)
 	}
 
 	wgSrc, err := net.ResolveUDPAddr("udp4", "0.0.0.0:0")
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve destination (wireguard server) address")
+		return nil, fmt.Errorf("failed to resolve destination (wireguard server) address: %w", err)
 	}
 
 	wgSock, err := net.ListenUDP("udp", wgSrc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a socket to the Wireguard server")
+		return nil, fmt.Errorf("failed to create a socket to the Wireguard server: %w", err)
 	}
 
 	if err := wgSock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
-		return nil, fmt.Errorf("failed to set read buffer: %v", err)
+		return nil, fmt.Errorf("failed to set read buffer: %w", err)
 	}
 	if err := wgSock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
-		return nil, fmt.Errorf("failed to set write buffer: %v", err)
+		return nil, fmt.Errorf("failed to set write buffer: %w", err)
 	}
 
 	return &wgRoutine{
@@ -71,7 +73,7 @@ func (r *wgRoutine) Read(bp *packet.BufferPool) (packet.Packet, error) {
 			return packet.Packet{}, ErrWgRoutineClosed
 		}
 
-		return packet.Packet{}, fmt.Errorf("failed to read from wg socket: %v", err)
+		return packet.Packet{}, fmt.Errorf("failed to read from wg socket: %w", err)
 	}
 
 	pkt := packet.NewPacket(buffer, n)
@@ -85,11 +87,11 @@ func (r *wgRoutine) Write(pkt packet.PacketWithClientIDAndSrcAddr, deadline time
 	}
 
 	if err := r.wgSock.SetWriteDeadline(time.Now().Add(deadline)); err != nil {
-		return fmt.Errorf("failed to set write deadline for wg socket: %v", err)
+		return fmt.Errorf("failed to set write deadline for wg socket: %w", err)
 	}
 
 	if _, err := r.wgSock.WriteToUDP(pkt.StripClientID(), r.wgAddr); err != nil {
-		return fmt.Errorf("failed to write to wg socket: %v", err)
+		return fmt.Errorf("failed to write to wg socket: %w", err)
 	}
 
 	return nil

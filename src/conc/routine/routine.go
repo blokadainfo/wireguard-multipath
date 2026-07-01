@@ -24,24 +24,24 @@ type Routine struct {
 func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, error) {
 	dstAddr, err := net.ResolveUDPAddr("udp4", serverAddr) // TODO: IPv6
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve destination (server) address: %v", err)
+		return nil, fmt.Errorf("failed to resolve destination (server) address: %w", err)
 	}
 
 	srcAddr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%v:0", ifaddr)) // TODO: IPv6
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve source address, not using this interface: %v", err)
+		return nil, fmt.Errorf("failed to resolve source address, not using this interface: %w", err)
 	}
 
 	sock, err := ifaceutils.BoundUdpConn(srcAddr, ifname)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface: %v", err)
+		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface: %w", err)
 	}
 
 	if err := sock.SetReadBuffer(packet.SocketReadBufferSize); err != nil {
-		return nil, fmt.Errorf("failed to set read buffer, not using this interface: %v", err)
+		return nil, fmt.Errorf("failed to set read buffer, not using this interface: %w", err)
 	}
 	if err := sock.SetWriteBuffer(packet.SocketWriteBufferSize); err != nil {
-		return nil, fmt.Errorf("failed to set write buffer, not using this interface: %v", err)
+		return nil, fmt.Errorf("failed to set write buffer, not using this interface: %w", err)
 	}
 
 	return &Routine{
@@ -74,7 +74,7 @@ func (r *Routine) Read(bp *packet.BufferPool) (packet.Packet, error) {
 			return packet.Packet{}, ErrRoutineClosed
 		}
 
-		return packet.Packet{}, fmt.Errorf("failed to read from socket: %v", err)
+		return packet.Packet{}, fmt.Errorf("failed to read from socket: %w", err)
 	}
 
 	pkt := packet.NewPacket(buffer, n)
@@ -88,11 +88,11 @@ func (r *Routine) Write(pkt packet.PacketWithClientID, deadline time.Duration) e
 	}
 
 	if err := r.sock.SetWriteDeadline(time.Now().Add(deadline)); err != nil {
-		return fmt.Errorf("failed to set write deadline for socket: %v", err)
+		return fmt.Errorf("failed to set write deadline for socket: %w", err)
 	}
 
 	if _, err := r.sock.WriteToUDP(pkt.Bytes(), r.dstAddr); err != nil {
-		return fmt.Errorf("failed to write to socket: %v", err)
+		return fmt.Errorf("failed to write to socket: %w", err)
 	}
 
 	return nil

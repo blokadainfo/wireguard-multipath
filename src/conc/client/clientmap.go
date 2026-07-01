@@ -1,11 +1,15 @@
 package client
 
 import (
-	"fmt"
+	"errors"
 	"log/slog"
 	"sync"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrClientAlreadyExists = errors.New("client with that ID already exists")
 )
 
 type ClientMap struct {
@@ -26,7 +30,7 @@ func (cm *ClientMap) AddClient(cliendId uuid.UUID, c *Client) error {
 
 	_, ok := cm.m[cliendId]
 	if ok {
-		return fmt.Errorf("client with that ID already exists")
+		return ErrClientAlreadyExists
 	}
 
 	cm.m[cliendId] = c

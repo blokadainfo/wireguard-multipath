@@ -41,7 +41,7 @@ func GetGlobList(key string, fallback ...[]glob.Glob) []glob.Glob {
 		for _, s := range strs {
 			g, err := glob.Compile(s)
 			if err != nil {
-				return globs, fmt.Errorf("%s", "regexp: Compile("+quote(str)+"): "+err.Error())
+				return globs, fmt.Errorf("glob: Compile(%s): %w", quote(str), err)
 			}
 
 			globs = append(globs, g)
@@ -63,7 +63,7 @@ func GetRegexpList(key string, fallback ...[]*regexp.Regexp) []*regexp.Regexp {
 		for _, s := range strs {
 			r, err := regexp.Compile(s)
 			if err != nil {
-				return regexps, fmt.Errorf("%s", "regexp: Compile("+quote(str)+"): "+err.Error())
+				return regexps, fmt.Errorf("regexp: Compile(%s): %w", quote(str), err)
 			}
 
 			regexps = append(regexps, r)

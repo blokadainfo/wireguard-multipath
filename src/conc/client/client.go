@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"slices"
@@ -18,10 +19,15 @@ type Client struct {
 	l     sync.RWMutex
 }
 
+var (
+	ErrQueueFull     = errors.New("queue is full, dropping packet")
+	ErrNoActiveConns = errors.New("no active connections to send to")
+)
+
 func NewClient(clientId uuid.UUID, wgServerAddr string) (*Client, error) {
 	r, err := NewWgRoutine(clientId, wgServerAddr)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create routine: %v", err)
+		return nil, fmt.Errorf("failed to create routine: %w", err)
 	}
 
 	return &Client{
@@ -42,7 +48,7 @@ func (c *Client) WriteToQueue(pkt packet.PacketWithClientIDAndSrcAddr) error {
 	case c.q <- pkt:
 		return nil
 	default:
-		return fmt.Errorf("queue is full, dropping packet") // TODO: Make sure this is desired behaviour
+		return ErrQueueFull
 	}
 }
 
@@ -73,7 +79,7 @@ func (c *Client) ReadFromWgRoutine(bp *packet.BufferPool) (packet.PacketWithSrcA
 	}
 
 	if len(srcAddrs) == 0 {
-		return packet.PacketWithSrcAddrs{}, fmt.Errorf("no active connections to send to")
+		return packet.PacketWithSrcAddrs{}, ErrNoActiveConns
 	}
 
 	pktWSA := packet.NewPacketWithSrcAddrs(pkt, srcAddrs)
