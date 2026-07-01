@@ -3,45 +3,62 @@
 package ifaceutils
 
 import (
+	"context"
 	"fmt"
 	"net"
-	"os"
 	"syscall"
 )
 
-/* Borrowed from https://github.com/udhos/nexthop/ - Thanks! */
-func BoundUdpConn(laddr *net.UDPAddr, ifname string) (*net.UDPConn, error) {
+func BoundUDPConn(laddr *net.UDPAddr, ifname string) (*net.UDPConn, error) {
 	if laddr == nil {
-		laddr = &net.UDPAddr{IP: net.IPv4zero, Port: 0}
-	}
-	s, err1 := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
-	if err1 != nil {
-		return nil, fmt.Errorf("could not create socket(laddr=%v,ifname=%s): %w", laddr, ifname, err1)
-	}
-	if err := syscall.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1); err != nil {
-		syscall.Close(s)
-		return nil, fmt.Errorf("could not set reuse addr socket(laddr=%v,ifname=%s): %w", laddr, ifname, err)
-	}
-	if ifname != "" {
-		if err := syscall.SetsockoptString(s, syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, ifname); err != nil {
-			syscall.Close(s)
-			return nil, fmt.Errorf("could not bind to device socket(laddr=%v, ifname=%s): %w", laddr, ifname, err)
+		laddr = &net.UDPAddr{
+			IP: net.IPv4zero,
 		}
 	}
-	lsa := syscall.SockaddrInet4{Port: laddr.Port}
-	copy(lsa.Addr[:], laddr.IP.To4())
 
-	if err := syscall.Bind(s, &lsa); err != nil {
-		syscall.Close(s)
-		return nil, fmt.Errorf("could not bind socket to address %v: %w", laddr, err)
-	}
-	f := os.NewFile(uintptr(s), "")
-	c, err2 := net.FilePacketConn(f)
-	f.Close()
-	if err2 != nil {
-		syscall.Close(s)
-		return nil, fmt.Errorf("could not get packet connection for socket(laddr=%v,ifname=%s): %w", laddr, ifname, err2)
+	lc := net.ListenConfig{
+		Control: func(network, address string, c syscall.RawConn) error {
+			var ctrlErr error
+
+			if err := c.Control(func(fd uintptr) {
+				if err := syscall.SetsockoptInt(
+					int(fd),
+					syscall.SOL_SOCKET,
+					syscall.SO_REUSEADDR,
+					1,
+				); err != nil {
+					ctrlErr = fmt.Errorf("set SO_REUSEADDR: %w", err)
+					return
+				}
+
+				if ifname != "" {
+					if err := syscall.SetsockoptString(
+						int(fd),
+						syscall.SOL_SOCKET,
+						syscall.SO_BINDTODEVICE,
+						ifname,
+					); err != nil {
+						ctrlErr = fmt.Errorf("bind to device %q: %w", ifname, err)
+					}
+				}
+			}); err != nil {
+				return err
+			}
+
+			return ctrlErr
+		},
 	}
 
-	return c.(*net.UDPConn), nil
+	pc, err := lc.ListenPacket(context.Background(), "udp", laddr.String())
+	if err != nil {
+		return nil, fmt.Errorf("listen on %v: %w", laddr, err)
+	}
+
+	uc, ok := pc.(*net.UDPConn)
+	if !ok {
+		pc.Close()
+		return nil, fmt.Errorf("expected *net.UDPConn, got %T", pc)
+	}
+
+	return uc, nil
 }

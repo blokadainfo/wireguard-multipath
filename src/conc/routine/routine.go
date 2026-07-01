@@ -32,7 +32,7 @@ func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, erro
 		return nil, fmt.Errorf("failed to resolve source address, not using this interface: %w", err)
 	}
 
-	sock, err := ifaceutils.BoundUdpConn(srcAddr, ifname)
+	sock, err := ifaceutils.BoundUDPConn(srcAddr, ifname)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a socket bount to interface, not using this inteface: %w", err)
 	}
