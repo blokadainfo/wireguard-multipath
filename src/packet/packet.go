@@ -21,11 +21,9 @@ func NewPacket(buffer []byte, n int) Packet {
 }
 
 func (p Packet) free() {
-	if p.freed.Load() {
+	if p.freed.Swap(true) {
 		panic("Packet.free(): trying to free an already freed packet")
 	}
-
-	p.freed.Store(true)
 }
 
 func (p Packet) Bytes() []byte {

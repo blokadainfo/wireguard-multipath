@@ -54,11 +54,9 @@ func NewRoutine(ifname string, ifaddr string, serverAddr string) (*Routine, erro
 }
 
 func (r *Routine) Close() error {
-	if r.closed.Load() {
+	if r.closed.Swap(true) {
 		return nil
 	}
-
-	r.closed.Store(true)
 
 	return r.sock.Close()
 }

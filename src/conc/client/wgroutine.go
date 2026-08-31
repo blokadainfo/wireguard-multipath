@@ -54,11 +54,9 @@ func NewWgRoutine(clientId uuid.UUID, wgServerAddr string) (*wgRoutine, error) {
 }
 
 func (r *wgRoutine) Close() error {
-	if r.closed.Load() {
+	if r.closed.Swap(true) {
 		return nil
 	}
-
-	r.closed.Store(true)
 
 	return r.wgSock.Close()
 }
