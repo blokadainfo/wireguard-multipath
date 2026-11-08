@@ -97,6 +97,10 @@ func GetCIDRList(key string, fallback ...[]net.IPNet) []net.IPNet {
 func GetCIDR(key string, fallback ...net.IPNet) net.IPNet {
 	return get(func(str string) (net.IPNet, error) {
 		_, cidr, err := net.ParseCIDR(str)
+		if err != nil {
+			return net.IPNet{}, err
+		}
+
 		return *cidr, err
 	}, key, fallback...)
 }
