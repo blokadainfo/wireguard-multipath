@@ -1,7 +1,6 @@
 package envutils
 
 import (
-	"os"
 	"testing"
 	"time"
 )
@@ -35,8 +34,8 @@ import (
 
 func TestGetTimeDuration(t *testing.T) {
 	{
-		os.Setenv("TEST_GET_TD_1", "10")
-		got := GetTimeDuration(time.Millisecond, "TEST_GET_TD_1")
+		t.Setenv("TEST_GET_TIME_DURATION", "10")
+		got := GetTimeDuration(time.Millisecond, "TEST_GET_TIME_DURATION")
 		want := 10 * time.Millisecond
 		if got != want {
 			t.Errorf("GetTimeDuration(time.Millisecond, \"10\") = %v, want %v", got, want)
@@ -44,8 +43,8 @@ func TestGetTimeDuration(t *testing.T) {
 	}
 
 	{
-		os.Setenv("TEST_GET_TD_2", "123")
-		got := GetTimeDuration(time.Second, "TEST_GET_TD_2")
+		t.Setenv("TEST_GET_TIME_DURATION", "123")
+		got := GetTimeDuration(time.Second, "TEST_GET_TIME_DURATION")
 		want := 123 * time.Second
 		if got != want {
 			t.Errorf("GetTimeDuration(time.Second, \"123\") = %v, want %v", got, want)
@@ -53,8 +52,7 @@ func TestGetTimeDuration(t *testing.T) {
 	}
 
 	{
-		// os.Setenv("TEST_GET_TD_3", "")
-		got := GetTimeDuration(time.Second, "TEST_GET_TD_3", 1000*time.Millisecond)
+		got := GetTimeDuration(time.Second, "TEST_GET_TIME_DURATION_NON_EXISTENT", 1000*time.Millisecond)
 		want := 1000 * time.Millisecond
 		if got != want {
 			t.Errorf("GetTimeDuration(time.Second, \"\", 1000*time.Millisecond) = %v, want %v", got, want)
