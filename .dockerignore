@@ -6,6 +6,7 @@
 
 # Allow src folder
 !src/
+!src/**
 
 # Allow go.mod and go.sum
 !go.mod
