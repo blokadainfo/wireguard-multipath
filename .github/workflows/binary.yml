@@ -90,5 +90,5 @@ jobs:
       - name: Artifact Darwin
         uses: actions/upload-artifact@v4
         with:
-          name: build_darwin_amd64
+          name: build_darwin_arm64
           path: dist/*darwin*
