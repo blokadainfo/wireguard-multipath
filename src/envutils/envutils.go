@@ -123,7 +123,7 @@ func GetTimeDuration(quantifier time.Duration, key string, fallback ...time.Dura
 	return get(func(str string) (time.Duration, error) {
 		i, err := strconv.ParseInt(str, 10, 64)
 		return time.Duration(i) * quantifier, err
-	}, key, fallback...) * quantifier
+	}, key, fallback...)
 }
 
 func GetInt(key string, fallback ...int64) int64 {
